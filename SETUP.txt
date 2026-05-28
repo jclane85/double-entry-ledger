@@ -1,0 +1,177 @@
+================================================================================
+ DOUBLE-ENTRY LEDGER — SETUP GUIDE
+================================================================================
+
+PREREQUISITES
+-------------
+  - Node.js 20+         https://nodejs.org
+  - Git                 https://git-scm.com
+  - Docker Desktop      https://www.docker.com/products/docker-desktop
+      OR a local PostgreSQL 16 instance (see "Without Docker" below)
+
+--------------------------------------------------------------------------------
+QUICK START (with Docker)
+--------------------------------------------------------------------------------
+
+1. CLONE THE REPOSITORY
+   --------------------
+   git clone https://github.com/jclane85/double-entry-ledger.git
+   cd double-entry-ledger
+
+2. CREATE ENVIRONMENT FILES
+   ------------------------
+   Copy the example files and fill in your own values:
+
+   Windows:
+     copy .env.example .env
+     copy api\.env.example api\.env
+
+   macOS / Linux:
+     cp .env.example .env
+     cp api/.env.example api/.env
+
+   Edit .env  (root — used by Docker Compose):
+     POSTGRES_USER=ledger
+     POSTGRES_PASSWORD=<your_password>
+     POSTGRES_DB=ledger_db
+     POSTGRES_PORT=5432
+     PGADMIN_EMAIL=admin@example.com
+     PGADMIN_PASSWORD=<your_password>
+     PGADMIN_PORT=5050
+
+   Edit api/.env  (used by the API server):
+     DATABASE_URL=postgresql://ledger:<your_password>@localhost:5432/ledger_db
+     PORT=3001
+     NODE_ENV=development
+
+   NOTE: Both passwords must match — POSTGRES_PASSWORD in .env and the
+         password embedded in DATABASE_URL in api/.env.
+
+3. START POSTGRESQL
+   ----------------
+   docker compose up -d
+
+   Wait for the health check to pass (a few seconds), then verify:
+     docker compose ps
+
+4. INSTALL API DEPENDENCIES & RUN MIGRATIONS
+   ------------------------------------------
+   cd api
+   npm install
+   npm run migrate    <- creates the schema (accounts, journal_entries, ledger_lines)
+   npm run seed       <- populates the chart of accounts (22 standard accounts)
+
+5. START THE API SERVER
+   ---------------------
+   npm run dev        <- starts Fastify on http://localhost:3001
+
+   Verify:
+     curl http://localhost:3001/health
+     -> {"status":"ok","ts":"..."}
+
+6. INSTALL FRONTEND DEPENDENCIES & START DEV SERVER
+   --------------------------------------------------
+   Open a second terminal:
+
+   cd web
+   npm install
+   npm run dev        <- starts Vite on http://localhost:5173
+
+7. OPEN THE APP
+   ------------
+   http://localhost:5173
+
+   Available pages:
+     /accounts            - Chart of Accounts (view & create accounts)
+     /journal-entries     - Post and view journal entries
+     /journal-entries/new - New double-entry journal entry form
+     /trial-balance       - Trial balance report
+
+   pgAdmin (if using Docker):
+     http://localhost:5050
+     Login with PGADMIN_EMAIL / PGADMIN_PASSWORD from your .env
+     Add server: host=postgres, port=5432, user/pass from .env
+
+--------------------------------------------------------------------------------
+WITHOUT DOCKER (local PostgreSQL)
+--------------------------------------------------------------------------------
+
+If you have PostgreSQL 16 installed locally:
+
+1. Create the role and database (run as postgres superuser):
+     psql -U postgres -c "CREATE USER ledger WITH PASSWORD '<your_password>';"
+     psql -U postgres -c "CREATE DATABASE ledger_db OWNER ledger ENCODING 'UTF8';"
+     psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE ledger_db TO ledger;"
+
+2. Set api/.env:
+     DATABASE_URL=postgresql://ledger:<your_password>@localhost:5432/ledger_db
+     PORT=3001
+     NODE_ENV=development
+
+3. Continue from Step 4 above (skip docker compose).
+
+--------------------------------------------------------------------------------
+API REFERENCE
+--------------------------------------------------------------------------------
+
+  GET  /health                        Health check
+  GET  /accounts                      List all accounts
+  POST /accounts                      Create an account
+  GET  /accounts/:id                  Get account details
+  GET  /accounts/:id/ledger           Paginated ledger with running balance
+
+  GET  /journal-entries               List journal entries
+  GET  /journal-entries/:id           Get entry with lines
+  POST /journal-entries               Post a journal entry (transactional)
+  POST /journal-entries/:id/void      Void an entry (creates reversing entry)
+
+  GET  /reports/trial-balance         Trial balance report
+
+EXAMPLE — Post a journal entry:
+
+  POST /journal-entries
+  Content-Type: application/json
+
+  {
+    "description": "Customer deposit received",
+    "reference": "DEP-001",
+    "idempotency_key": "unique-client-key-here",
+    "lines": [
+      { "account_id": "<uuid>", "side": "debit",  "amount": "1000.00" },
+      { "account_id": "<uuid>", "side": "credit", "amount": "1000.00" }
+    ]
+  }
+
+  Rules enforced by the API:
+    - lines must balance: sum(debits) == sum(credits)
+    - amount must be > 0
+    - at least 2 lines required
+    - idempotency_key (optional): duplicate requests return the original entry
+
+--------------------------------------------------------------------------------
+AVAILABLE NPM SCRIPTS
+--------------------------------------------------------------------------------
+
+  api/
+    npm run dev        Start dev server with hot reload (ts-node-dev)
+    npm run build      Compile TypeScript to dist/
+    npm run start      Run compiled build (production)
+    npm run migrate    Apply database migrations
+    npm run seed       Seed chart of accounts
+
+  web/
+    npm run dev        Start Vite dev server
+    npm run build      Production build to dist/
+    npm run preview    Preview production build locally
+
+--------------------------------------------------------------------------------
+STOPPING EVERYTHING
+--------------------------------------------------------------------------------
+
+  Stop dev servers:     Ctrl+C in each terminal
+
+  Stop Docker Postgres:
+    docker compose down          <- stops containers (data preserved)
+    docker compose down -v       <- stops and deletes database volume
+
+================================================================================
