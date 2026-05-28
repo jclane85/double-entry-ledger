@@ -1,0 +1,25 @@
+# ============================================================
+# Root .gitignore
+# ============================================================
+
+# Environment / secrets — NEVER commit these
+.env
+*.env.local
+*.env.*.local
+
+# Local PostgreSQL data (portable dev setup)
+pgdata/
+pg16.zip
+pgsql/
+pg.log
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
