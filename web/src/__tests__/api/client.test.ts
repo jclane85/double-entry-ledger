@@ -89,4 +89,31 @@ describe('api client', () => {
       await expect(api.post('/journal-entries', {})).rejects.toThrow('HTTP 503');
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Security-layer error responses
+  // These status codes are produced by @fastify/rate-limit and Fastify's
+  // built-in body-limit guard — verifying the client surfaces them correctly.
+  // -------------------------------------------------------------------------
+  describe('security-layer error responses', () => {
+    it('throws "Too Many Requests" when the API returns 429 (rate limit hit)', async () => {
+      // @fastify/rate-limit errorResponseBuilder shape: { error: 'Too Many Requests', ... }
+      mockFetch(
+        { statusCode: 429, error: 'Too Many Requests', message: 'Rate limit exceeded. Please slow down.' },
+        false,
+        429,
+      );
+      await expect(api.get('/accounts')).rejects.toThrow('Too Many Requests');
+    });
+
+    it('throws "Request Entity Too Large" when the API returns 413 (body exceeds 1 MB)', async () => {
+      // Fastify bodyLimit guard shape: { error: 'Request Entity Too Large', ... }
+      mockFetch(
+        { statusCode: 413, error: 'Request Entity Too Large', message: 'Request body is too large' },
+        false,
+        413,
+      );
+      await expect(api.post('/journal-entries', {})).rejects.toThrow('Request Entity Too Large');
+    });
+  });
 });
