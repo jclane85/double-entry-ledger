@@ -117,7 +117,8 @@ describe('ChartOfAccounts', () => {
       expect(screen.queryByRole('heading', { name: /New Account/i })).not.toBeInTheDocument()
     );
     expect(mockCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ code: '9999', name: 'Test Account' })
+      expect.objectContaining({ code: '9999', name: 'Test Account' }),
+      expect.any(Object), // React Query v5 passes a context object as 2nd arg to mutationFn
     );
   });
 
