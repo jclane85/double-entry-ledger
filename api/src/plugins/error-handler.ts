@@ -1,6 +1,7 @@
+import fp from 'fastify-plugin';
 import { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
-export async function errorHandler(app: FastifyInstance): Promise<void> {
+async function errorHandlerPlugin(app: FastifyInstance): Promise<void> {
   app.setErrorHandler(
     (error: FastifyError, _req: FastifyRequest, reply: FastifyReply) => {
       const status = error.statusCode ?? 500;
@@ -33,3 +34,7 @@ export async function errorHandler(app: FastifyInstance): Promise<void> {
     }
   );
 }
+
+// fastify-plugin breaks encapsulation so setErrorHandler applies to the root app
+// and all sibling/child plugins — required in Fastify v5.
+export const errorHandler = fp(errorHandlerPlugin);
